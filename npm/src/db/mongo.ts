@@ -37,7 +37,20 @@ class Mongo implements DatabaseDriver {
     await this.collection.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 1 });
     await this.collection.createIndex({ namespace: 1 });
 
+    this.indexNamespace();
+
     return this;
+  }
+
+  async indexNamespace() {
+    const docs = await this.collection.find({ namespace: { $exists: false } }).toArray();
+    const searchTerm = ':';
+
+    for (const doc of docs || []) {
+      const tokens2 = doc._id.toString().split(searchTerm).slice(0, 2);
+      const namespace = tokens2.join(searchTerm);
+      await this.collection.updateOne({ _id: doc._id }, { $set: { namespace } });
+    }
   }
 
   async get(namespace: string, key: string): Promise<any> {

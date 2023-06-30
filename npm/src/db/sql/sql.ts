@@ -3,7 +3,7 @@
 require('reflect-metadata');
 
 import { DatabaseDriver, DatabaseOption, Index, Encrypted, Records } from '../../typings';
-import { DataSource, DataSourceOptions, In } from 'typeorm';
+import { DataSource, DataSourceOptions, In, IsNull } from 'typeorm';
 import * as dbutils from '../utils';
 import * as mssql from './mssql';
 
@@ -73,6 +73,8 @@ class Sql implements DatabaseDriver {
     this.indexRepository = this.dataSource.getRepository(JacksonIndex);
     this.ttlRepository = this.dataSource.getRepository(JacksonTTL);
 
+    this.indexNamespace();
+
     if (this.options.ttl && this.options.cleanupLimit) {
       this.ttlCleanup = async () => {
         const now = Date.now();
@@ -109,6 +111,23 @@ class Sql implements DatabaseDriver {
     }
 
     return this;
+  }
+
+  async indexNamespace() {
+    const res = await this.storeRepository.find({
+      where: {
+        namespace: IsNull(),
+      },
+      select: ['key'],
+    });
+    const searchTerm = ':';
+
+    for (const r of res) {
+      const key = r.key;
+      const tokens2 = key.split(searchTerm).slice(0, 2);
+      const value = tokens2.join(searchTerm);
+      await this.storeRepository.update({ key }, { namespace: value });
+    }
   }
 
   async get(namespace: string, key: string): Promise<any> {
